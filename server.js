@@ -30,6 +30,11 @@ app.use(session({
   saveUninitialized: true,
 }));
 
+// Admin page route
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
 // Serve static
 app.use('/', express.static(path.join(__dirname, 'public')));
 
