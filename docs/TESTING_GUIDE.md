@@ -5,6 +5,7 @@ Complete guide to testing, monitoring, and validating the tattoo contest applica
 ## Quick Start
 
 ### Run Integration Tests
+
 ```bash
 # Against local server
 npm test
@@ -14,6 +15,7 @@ TEST_URL=https://tattoo-contest.fly.dev npm run test:integration
 ```
 
 ### Run Load Tests
+
 ```bash
 # Default: 50 users, 60 seconds
 npm run load-test
@@ -65,35 +67,41 @@ Comprehensive automated testing of all API endpoints and real-time features.
 ### What It Tests
 
 **✓ Categories**
+
 - Fetch categories endpoint
 - Field validation (id, name required)
 - Admin can add/update categories
 - Categories persist
 
 **✓ Submissions**
+
 - Category validation (400 on invalid)
 - Public feed returns correct structure
 - Admin-only access control (401 on unauthorized)
 - Submission data persistence
 
 **✓ Authentication**
+
 - Password validation
 - Session management
 - Authorization checks on protected endpoints
 
 **✓ Winners**
+
 - Winners retrieval (public endpoint)
 - Admin-only save (401 unauthorized)
 - 2-winner limit per category enforced
 - Data persistence
 
 **✓ Real-time Events**
+
 - Socket.io connection established
 - newSubmission events broadcast
 - winnersUpdated events broadcast
 - Proper event payloads
 
 **✓ Error Handling**
+
 - Invalid input rejected (400)
 - Unauthorized access blocked (401)
 - Proper error messages
@@ -129,12 +137,14 @@ Simulate realistic traffic patterns and stress test the system.
 ### Stress Test (Default)
 
 Simulates peak concurrent users with realistic behavior:
+
 - Category fetches
 - Live feed polls (every 3-8 seconds)
 - Periodic submissions (based on SUBMISSION_RATE)
 - Socket.io event handling
 
 **Metrics Collected:**
+
 - Total requests
 - Success/failure rate
 - Average response time
@@ -143,6 +153,7 @@ Simulates peak concurrent users with realistic behavior:
 - Requests per second
 
 **Pass Criteria:**
+
 - ✓ Avg response time < 500ms
 - ✓ P95 response time < 1000ms
 - ✓ Error rate < 5%
@@ -151,11 +162,13 @@ Simulates peak concurrent users with realistic behavior:
 ### Spike Test
 
 10x traffic surge to test auto-recovery:
+
 - Rapid concurrent connections
 - Measures system behavior under extreme load
 - Validates graceful degradation
 
 **Pass Criteria:**
+
 - ✓ Failure rate < 10%
 - ✓ No cascade failures
 - ✓ System recovers after spike
@@ -163,17 +176,20 @@ Simulates peak concurrent users with realistic behavior:
 ### Memory Leak Test
 
 5-minute sustained load to detect memory leaks:
+
 - Continuous user sessions
 - Periodic data updates
 - Monitors for unbounded growth
 
 **What to Monitor:**
+
 ```bash
 # In separate terminal during test
 watch -n 1 'ps aux | grep node | grep -v grep'
 ```
 
 **Pass Criteria:**
+
 - ✓ Memory usage stable
 - ✓ No increasing growth trend
 - ✓ GC events reduce spikes
@@ -222,6 +238,7 @@ See `docs/TEST_SCENARIOS.md` for detailed manual testing procedures.
 ### Quick Tests
 
 **Public Submission Flow**
+
 ```bash
 1. Go to https://tattoo-contest.fly.dev
 2. Select category
@@ -232,6 +249,7 @@ See `docs/TEST_SCENARIOS.md` for detailed manual testing procedures.
 ```
 
 **Admin Login & Winners**
+
 ```bash
 1. Go to https://tattoo-contest.fly.dev/admin
 2. Enter password: pins2025lol
@@ -243,6 +261,7 @@ See `docs/TEST_SCENARIOS.md` for detailed manual testing procedures.
 ```
 
 **Real-time Sync**
+
 ```bash
 1. Open 2 browser windows
 2. Window A: public page
@@ -253,6 +272,7 @@ See `docs/TEST_SCENARIOS.md` for detailed manual testing procedures.
 ```
 
 **Category Management**
+
 ```bash
 1. Admin panel
 2. Add category (name: "Test", id: "test")
@@ -275,6 +295,7 @@ curl https://tattoo-contest.fly.dev/health | jq '.'
 ```
 
 Returns:
+
 ```json
 {
   "status": "healthy",
@@ -307,16 +328,19 @@ Returns:
 ### Monitoring
 
 **Daily:**
+
 - Check `/health` endpoint
 - Review error logs
 - Monitor memory usage
 
 **Weekly:**
+
 - Run full integration test suite
 - Run load test with 50+ users
 - Review performance trends
 
 **Monthly:**
+
 - Spike test (10x surge)
 - Memory leak test (5 minutes)
 - Disaster recovery drill
@@ -420,6 +444,7 @@ fi
 ```
 
 Setup cron:
+
 ```bash
 # Run daily at 2 AM
 0 2 * * * /home/user/scripts/daily-check.sh
@@ -465,6 +490,7 @@ Configure these in your monitoring system:
 See `docs/DISASTER_RECOVERY.md` for detailed procedures.
 
 Quick recovery commands:
+
 ```bash
 # Restart if unresponsive
 flyctl machines restart <id> -a tattoo-contest
@@ -495,6 +521,7 @@ flyctl machines restart <id> -a tattoo-contest
 ## Questions?
 
 For issues or questions about testing:
+
 1. Check TEST_SCENARIOS.md for detailed procedures
 2. Review DISASTER_RECOVERY.md for error scenarios
 3. Check `/health` and `/api/metrics` endpoints
