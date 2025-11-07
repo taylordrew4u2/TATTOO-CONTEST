@@ -7,6 +7,7 @@ const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const cors = require('cors');
 const session = require('express-session');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -14,6 +15,7 @@ const { Server } = require('socket.io');
 const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
+const DATA_FILE = path.join(__dirname, 'data.json');
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -38,13 +40,37 @@ app.get('/admin', (req, res) => {
 // Serve static
 app.use('/', express.static(path.join(__dirname, 'public')));
 
-// Simple in-memory datastore (replace with DB in production)
+// Simple in-memory datastore with file persistence
 const categories = require('./categories.json');
-const submissions = {}; // category -> array
-const winners = {}; // category -> array of 3 ids
+let submissions = {}; // category -> array
+let winners = {}; // category -> array of 3 ids
+
+// Load from file if exists
+function loadData() {
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      submissions = data.submissions || {};
+      winners = data.winners || {};
+    }
+  } catch (err) {
+    console.error('Failed to load data:', err.message);
+  }
+}
+
+// Save to file
+function saveData() {
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify({ submissions, winners }, null, 2));
+  } catch (err) {
+    console.error('Failed to save data:', err.message);
+  }
+}
+
+loadData();
 for (const c of categories) {
-  submissions[c.id] = [];
-  winners[c.id] = [];
+  if (!submissions[c.id]) submissions[c.id] = [];
+  if (!winners[c.id]) winners[c.id] = [];
 }
 
 // Multer for handling multipart uploads
@@ -103,6 +129,7 @@ app.post('/api/submit', upload.single('photo'), async (req, res) => {
       createdAt: Date.now(),
     };
     submissions[category].unshift(entry);
+    saveData();
     console.log(`✓ New submission in ${category}:`, entry.caption);
     console.log(`Total submissions:`, Object.values(submissions).reduce((a,b) => a + b.length, 0));
     const publicEntry = { id: entry.id, category: entry.category, caption: entry.caption, imageUrl: entry.imageUrl, createdAt: entry.createdAt, artist: 'Anonymous Artist' };
@@ -168,6 +195,7 @@ app.post('/api/save-winners', requireAdmin, (req, res) => {
   for (const [cat, arr] of Object.entries(data.winners)) {
     winners[cat] = (arr || []).slice(0,3);
   }
+  saveData();
 
   // broadcast winners update
   io.emit('winnersUpdated', { winners });
