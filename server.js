@@ -43,7 +43,7 @@ app.use('/', express.static(path.join(__dirname, 'public')));
 // Simple in-memory datastore with file persistence
 const categories = require('./categories.json');
 let submissions = {}; // category -> array
-let winners = {}; // category -> array of 3 ids
+let winners = {}; // category -> array of 2 ids
 
 // Load from file if exists
 function loadData() {
@@ -190,10 +190,10 @@ app.get('/api/winners', (req, res) => {
 
 // Admin: save winners
 app.post('/api/save-winners', requireAdmin, (req, res) => {
-  const data = req.body; // expect { winners: { categoryId: [id1,id2,id3], ... } }
+  const data = req.body; // expect { winners: { categoryId: [id1,id2], ... } }
   if (!data || !data.winners) return res.status(400).json({ error: 'Missing winners data' });
   for (const [cat, arr] of Object.entries(data.winners)) {
-    winners[cat] = (arr || []).slice(0,3);
+    winners[cat] = (arr || []).slice(0,2);
   }
   saveData();
 
