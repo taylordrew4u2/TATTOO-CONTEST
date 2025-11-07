@@ -103,8 +103,8 @@ app.post('/api/submit', upload.single('photo'), async (req, res) => {
       createdAt: Date.now(),
     };
     submissions[category].unshift(entry);
-
-    // Broadcast new submission (mask name)
+    console.log(`✓ New submission in ${category}:`, entry.caption);
+    console.log(`Total submissions:`, Object.values(submissions).reduce((a,b) => a + b.length, 0));
     const publicEntry = { id: entry.id, category: entry.category, caption: entry.caption, imageUrl: entry.imageUrl, createdAt: entry.createdAt, artist: 'Anonymous Artist' };
     io.emit('newSubmission', publicEntry);
 
@@ -135,6 +135,7 @@ function requireAdmin(req, res, next) {
 
 // Admin: get all submissions
 app.get('/api/submissions', requireAdmin, (req, res) => {
+  console.log(`Admin fetching submissions:`, Object.entries(submissions).map(([k, v]) => `${k}: ${v.length}`));
   res.json({ submissions });
 });
 
