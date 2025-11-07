@@ -27,7 +27,17 @@
         </div>
 
         <div id="admin-area" style="display:none">
+            <h3>Categories</h3>
+            <div id="cat-editor" style="margin-bottom:16px">
+                <input id="new-cat-name" type="text" placeholder="Category name" />
+                <input id="new-cat-id" type="text" placeholder="ID (e.g. worst)" />
+                <button class="btn" onclick="addCategory()">Add</button>
+            </div>
+            <div id="categories-list"
+                style="margin-bottom:16px;padding:8px;border:1px solid #ccc;border-radius:4px;min-height:40px"></div>
+
             <h3>Submissions</h3>
+            <button class="btn" onclick="loadAdmin()" style="margin-bottom:8px">Refresh Submissions</button>
             <div id="subs" class="admin-grid"></div>
 
             <h3>Pick Winners</h3>
@@ -38,7 +48,35 @@
     </div>
 
     <script>
+        let currentCats = [];
+
+        async function loadCategories() {
+            const res = await fetch('/categories.json');
+            currentCats = await res.json();
+            renderCategoryList();
+        }
+
+        function renderCategoryList() {
+            const list = document.getElementById('categories-list');
+            list.innerHTML = currentCats.map(c => `<div style="display:inline-block;margin:4px;padding:4px 8px;background:#333;color:#fff;border-radius:4px">${c.name} <small style="opacity:0.7">(${c.id})</small></div>`).join('');
+        }
+
+        async function addCategory() {
+            const name = document.getElementById('new-cat-name').value.trim();
+            const id = document.getElementById('new-cat-id').value.trim();
+            if (!name || !id) { alert('Fill in both fields'); return; }
+            currentCats.push({ id, name });
+            await fetch('/api/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categories: currentCats }) });
+            document.getElementById('new-cat-name').value = '';
+            document.getElementById('new-cat-id').value = '';
+            renderCategoryList();
+            loadAdmin();
+        }
+
+        window.addCategory = addCategory;
+
         async function init() {
+            await loadCategories();
             const loginForm = document.getElementById('login-form');
             const loginArea = document.getElementById('login-area');
             const adminArea = document.getElementById('admin-area');
@@ -53,7 +91,7 @@
                 else alert('Bad password');
             });
 
-            async function loadAdmin() {
+            window.loadAdmin = async function () {
                 const r = await fetch('/api/submissions');
                 const js = await r.json();
                 const subs = js.submissions;
@@ -67,7 +105,7 @@
                 }
 
                 // winner pickers
-                const cats = await (await fetch('/categories.json')).json();
+                const cats = currentCats;
                 controls.innerHTML = '';
                 cats.forEach(c => {
                     const wrap = document.createElement('div'); wrap.className = 'admin-card';
@@ -92,7 +130,7 @@
                     const r = await fetch('/api/save-winners', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ winners: picks }) });
                     if (r.ok) alert('Winners saved'); else alert('Error saving');
                 };
-            }
+            };
         }
         init();
     </script>

@@ -53,6 +53,22 @@ const upload = multer({ dest: path.join(__dirname, 'uploads/') });
 // expose categories to the frontend
 app.get('/categories.json', (req, res) => res.json(categories));
 
+// Admin: update categories
+app.post('/api/categories', requireAdmin, (req, res) => {
+  const { categories: newCats } = req.body;
+  if (!Array.isArray(newCats)) return res.status(400).json({ error: 'Invalid format' });
+  
+  // Update in-memory categories and add new ones to submissions
+  categories.length = 0;
+  newCats.forEach(c => {
+    categories.push(c);
+    if (!submissions[c.id]) submissions[c.id] = [];
+    if (!winners[c.id]) winners[c.id] = [];
+  });
+  
+  res.json({ success: true });
+});
+
 // API: submit
 app.post('/api/submit', upload.single('photo'), async (req, res) => {
   try {
