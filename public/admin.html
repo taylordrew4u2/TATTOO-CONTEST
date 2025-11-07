@@ -58,8 +58,18 @@
 
         function renderCategoryList() {
             const list = document.getElementById('categories-list');
-            list.innerHTML = currentCats.map(c => `<div style="display:inline-block;margin:4px;padding:4px 8px;background:#333;color:#fff;border-radius:4px">${c.name} <small style="opacity:0.7">(${c.id})</small></div>`).join('');
+            list.innerHTML = currentCats.map(c => `<div style="display:inline-block;margin:4px;padding:4px 8px;background:#333;color:#fff;border-radius:4px">${c.name} <small style="opacity:0.7">(${c.id})</small> <button style="background:#c00;border:none;color:#fff;padding:2px 6px;border-radius:2px;cursor:pointer;font-size:11px" onclick="deleteCategory('${c.id}')">X</button></div>`).join('');
         }
+
+        async function deleteCategory(id) {
+            if (!confirm('Remove this category?')) return;
+            currentCats = currentCats.filter(c => c.id !== id);
+            await fetch('/api/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categories: currentCats }) });
+            renderCategoryList();
+            loadAdmin();
+        }
+
+        window.deleteCategory = deleteCategory;
 
         async function addCategory() {
             const name = document.getElementById('new-cat-name').value.trim();
@@ -87,11 +97,12 @@
                 e.preventDefault();
                 const fd = new FormData(loginForm);
                 const res = await fetch('/api/login', { method: 'POST', body: JSON.stringify({ password: fd.get('password') }), headers: { 'Content-Type': 'application/json' } });
-                if (res.ok) { loginArea.style.display = 'none'; adminArea.style.display = 'block'; loadAdmin(); }
+                if (res.ok) { loginArea.style.display = 'none'; adminArea.style.display = 'block'; await loadAdmin(); }
                 else alert('Bad password');
             });
 
             window.loadAdmin = async function () {
+                await loadCategories(); // refresh categories first
                 const r = await fetch('/api/submissions');
                 const js = await r.json();
                 const subs = js.submissions;
