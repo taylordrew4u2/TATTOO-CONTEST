@@ -57,9 +57,15 @@ app.post('/api/submit', upload.single('photo'), async (req, res) => {
     // Upload to Cloudinary if configured, else return local path
     let imageUrl = null;
     if (req.file) {
-      if (process.env.CLOUDINARY_CLOUD_NAME) {
-        const result = await cloudinary.uploader.upload(req.file.path, { folder: 'tattoo-contest' });
-        imageUrl = result.secure_url;
+      if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+        try {
+          const result = await cloudinary.uploader.upload(req.file.path, { folder: 'tattoo-contest' });
+          imageUrl = result.secure_url;
+        } catch (cloudErr) {
+          console.error('Cloudinary upload error:', cloudErr);
+          // fallback to local if Cloudinary fails
+          imageUrl = `/uploads/${req.file.filename}`;
+        }
       } else {
         // fallback to server path (not for production)
         imageUrl = `/uploads/${req.file.filename}`;
