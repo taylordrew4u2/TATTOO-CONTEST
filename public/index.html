@@ -1,0 +1,120 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Tattoo Contest</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        const API_BASE = '';
+    </script>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="brand">TATTOO CONTEST</div>
+            <div class="topnav">
+                <a href="/winners.html" class="btn">Winners</a>
+                <a href="/admin" class="muted">Admin</a>
+            </div>
+        </div>
+
+        <div id="categories" class="categories"></div>
+
+        <div id="submission-area"></div>
+
+        <h3>Live Feed</h3>
+        <div id="feed" class="feed"></div>
+
+        <footer>Black · White · Red theme</footer>
+    </div>
+
+    <script>
+        async function init() {
+            const resp = await fetch('/categories.json');
+            const cats = await resp.json();
+            const catContainer = document.getElementById('categories');
+            const submissionArea = document.getElementById('submission-area');
+            let current = cats[0].id;
+
+            function renderCategories() {
+                catContainer.innerHTML = '';
+                cats.forEach(c => {
+                    const btn = document.createElement('div');
+                    btn.className = 'category';
+                    btn.textContent = c.name;
+                    btn.onclick = () => { current = c.id; renderForm(); loadFeed(); };
+                    catContainer.appendChild(btn);
+                });
+            }
+
+            function renderForm() {
+                submissionArea.innerHTML = `
+        <div class="submission">
+          <h3>Submit to ${cats.find(x => x.id === current).name}</h3>
+          <form id="submit-form" enctype="multipart/form-data">
+            <label>Photo</label>
+            <input type="file" name="photo" accept="image/*" required />
+            <label>Caption</label>
+            <input name="caption" type="text" />
+            <label>Your name (hidden on public feed)</label>
+            <input name="name" type="text" />
+            <label>Phone</label>
+            <input name="phone" type="tel" />
+            <input type="hidden" name="category" value="${current}" />
+            <div style="margin-top:8px"><button class="btn" type="submit">Submit</button></div>
+          </form>
+        </div>
+      `;
+
+                document.getElementById('submit-form').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const form = e.target;
+                    const fd = new FormData(form);
+                    const res = await fetch('/api/submit', { method: 'POST', body: fd });
+                    const js = await res.json();
+                    if (js.success) { alert('Submitted!'); form.reset(); }
+                    else alert('Error');
+                });
+            }
+
+            async function loadFeed() {
+                const res = await fetch('/api/feed');
+                const data = await res.json();
+                const feedEl = document.getElementById('feed');
+                const list = data.feed[current] || [];
+                feedEl.innerHTML = '';
+                list.forEach(item => {
+                    const c = document.createElement('div'); c.className = 'card';
+                    c.innerHTML = `<img src="${item.imageUrl}" alt="img"/><div><strong>${item.caption}</strong></div><div class="muted">${item.artist}</div>`;
+                    feedEl.appendChild(c);
+                });
+            }
+
+            renderCategories();
+            renderForm();
+            loadFeed();
+
+            const socket = io();
+            socket.on('newSubmission', (entry) => {
+                if (entry.category === current) {
+                    const feedEl = document.getElementById('feed');
+                    const c = document.createElement('div'); c.className = 'card';
+                    c.innerHTML = `<img src="${entry.imageUrl}" alt="img"/><div><strong>${entry.caption}</strong></div><div class="muted">${entry.artist}</div>`;
+                    feedEl.insertBefore(c, feedEl.firstChild);
+                }
+            });
+
+            socket.on('winnersUpdated', async () => {
+                // update winner button state (simple reload)
+                document.querySelector('.topnav a').textContent = 'Winners';
+            });
+        }
+        init();
+    </script>
+</body>
+
+</html>

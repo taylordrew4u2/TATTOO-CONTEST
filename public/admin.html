@@ -1,0 +1,101 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Admin - Tattoo Contest</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="brand">ADMIN</div>
+            <div class="topnav">
+                <a href="/" class="muted">Public</a>
+            </div>
+        </div>
+
+        <div id="login-area">
+            <h3>Login</h3>
+            <form id="login-form">
+                <input name="password" type="password" placeholder="Password" />
+                <div style="margin-top:8px"><button class="btn" type="submit">Login</button></div>
+            </form>
+        </div>
+
+        <div id="admin-area" style="display:none">
+            <h3>Submissions</h3>
+            <div id="subs" class="admin-grid"></div>
+
+            <h3>Pick Winners</h3>
+            <div id="winner-controls"></div>
+            <div style="margin-top:12px"><button id="save-winners" class="btn">Save Winners</button></div>
+        </div>
+
+    </div>
+
+    <script>
+        async function init() {
+            const loginForm = document.getElementById('login-form');
+            const loginArea = document.getElementById('login-area');
+            const adminArea = document.getElementById('admin-area');
+            const subsEl = document.getElementById('subs');
+            const controls = document.getElementById('winner-controls');
+
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const fd = new FormData(loginForm);
+                const res = await fetch('/api/login', { method: 'POST', body: JSON.stringify({ password: fd.get('password') }), headers: { 'Content-Type': 'application/json' } });
+                if (res.ok) { loginArea.style.display = 'none'; adminArea.style.display = 'block'; loadAdmin(); }
+                else alert('Bad password');
+            });
+
+            async function loadAdmin() {
+                const r = await fetch('/api/submissions');
+                const js = await r.json();
+                const subs = js.submissions;
+                subsEl.innerHTML = '';
+                for (const [cat, arr] of Object.entries(subs)) {
+                    arr.forEach(s => {
+                        const d = document.createElement('div'); d.className = 'admin-card';
+                        d.innerHTML = `<img src="${s.imageUrl}" style="width:100%;height:160px;object-fit:cover"/><div><strong>${s.caption}</strong></div><div class="muted">${s.name} · ${s.phone}</div><div>ID: ${s.id}</div>`;
+                        subsEl.appendChild(d);
+                    });
+                }
+
+                // winner pickers
+                const cats = await (await fetch('/categories.json')).json();
+                controls.innerHTML = '';
+                cats.forEach(c => {
+                    const wrap = document.createElement('div'); wrap.className = 'admin-card';
+                    wrap.innerHTML = `<h4>${c.name}</h4><div id="picker-${c.id}" class="winner-select"></div>`;
+                    controls.appendChild(wrap);
+                    const picker = document.getElementById('picker-' + c.id);
+                    const options = subs[c.id] || [];
+                    for (let i = 0; i < 3; i++) {
+                        const sel = document.createElement('select'); sel.dataset.cat = c.id;
+                        sel.innerHTML = '<option value="">-- pick --</option>' + options.map(o => `<option value="${o.id}">${o.caption} (${o.id})</option>`).join('');
+                        picker.appendChild(sel);
+                    }
+                });
+
+                document.getElementById('save-winners').onclick = async () => {
+                    const picks = {};
+                    document.querySelectorAll('.winner-select').forEach(div => {
+                        const cat = div.id.replace('picker-', '');
+                        const ids = Array.from(div.querySelectorAll('select')).map(s => s.value).filter(Boolean);
+                        picks[cat] = ids;
+                    });
+                    const r = await fetch('/api/save-winners', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ winners: picks }) });
+                    if (r.ok) alert('Winners saved'); else alert('Error saving');
+                };
+            }
+        }
+        init();
+    </script>
+</body>
+
+</html>

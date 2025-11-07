@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Winners - Tattoo Contest</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="brand">WINNERS</div>
+            <div class="topnav">
+                <a href="/" class="muted">Back</a>
+            </div>
+        </div>
+
+        <div id="winners-area"></div>
+
+    </div>
+
+    <script>
+        async function render() {
+            const area = document.getElementById('winners-area');
+            const r = await fetch('/api/winners');
+            const js = await r.json();
+            const cats = await (await fetch('/categories.json')).json();
+            area.innerHTML = '';
+            let has = false;
+            for (const c of cats) {
+                const list = js.winners[c.id] || [];
+                const wrap = document.createElement('div'); wrap.className = 'submission';
+                wrap.innerHTML = `<h3>${c.name}</h3>`;
+                if (!list.length) {
+                    wrap.innerHTML += `<div class="winners-banner">Winners will be announced at halfway break</div>`;
+                } else {
+                    has = true;
+                    const grid = document.createElement('div'); grid.className = 'feed';
+                    list.forEach(item => {
+                        const ccard = document.createElement('div'); ccard.className = 'card';
+                        ccard.innerHTML = `<img src="${item.imageUrl}"/><div><strong>${item.caption}</strong></div>`;
+                        grid.appendChild(ccard);
+                    });
+                    wrap.appendChild(grid);
+                }
+                area.appendChild(wrap);
+            }
+        }
+
+        const socket = io();
+        socket.on('winnersUpdated', () => { render(); });
+        render();
+    </script>
+</body>
+
+</html>
