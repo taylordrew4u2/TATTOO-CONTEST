@@ -76,6 +76,68 @@ for (const c of categories) {
 // Multer for handling multipart uploads
 const upload = multer({ dest: path.join(__dirname, 'uploads/') });
 
+// Health check endpoints for monitoring
+app.get('/health', (req, res) => {
+  const health = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    categories: categories.length,
+    submissions: Object.values(submissions).reduce((a, b) => a + b.length, 0),
+    winners: Object.entries(winners).map(([cat, arr]) => ({ category: cat, count: arr.length }))
+  };
+  res.json(health);
+});
+
+// Detailed metrics endpoint (requires admin)
+app.get('/api/metrics', requireAdmin, (req, res) => {
+  const metrics = {
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memoryUsage: process.memoryUsage(),
+    categories: {
+      count: categories.length,
+      list: categories
+    },
+    submissions: {
+      total: Object.values(submissions).reduce((a, b) => a + b.length, 0),
+      byCategory: Object.entries(submissions).map(([cat, arr]) => ({
+        category: cat,
+        count: arr.length,
+        oldest: arr.length > 0 ? arr[arr.length - 1].createdAt : null,
+        newest: arr.length > 0 ? arr[0].createdAt : null
+      }))
+    },
+    winners: {
+      total: Object.values(winners).reduce((a, b) => a + b.length, 0),
+      byCategory: Object.entries(winners).map(([cat, arr]) => ({
+        category: cat,
+        count: arr.length
+      }))
+    },
+    dataFile: {
+      exists: fs.existsSync(DATA_FILE),
+      sizeBytes: fs.existsSync(DATA_FILE) ? fs.statSync(DATA_FILE).size : 0
+    }
+  };
+  res.json(metrics);
+});
+
+// Readiness check (for Kubernetes/orchestration)
+app.get('/ready', (req, res) => {
+  const isReady = 
+    categories.length > 0 &&
+    Object.keys(submissions).length > 0 &&
+    fs.existsSync(DATA_FILE);
+  
+  if (isReady) {
+    res.json({ ready: true });
+  } else {
+    res.status(503).json({ ready: false, reason: 'Data not fully loaded' });
+  }
+});
+
 // expose categories to the frontend
 app.get('/categories.json', (req, res) => res.json(categories));
 
