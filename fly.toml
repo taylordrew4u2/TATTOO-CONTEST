@@ -1,0 +1,15 @@
+app = "tattoo-contest"
+primary_region = "iad"
+
+[env]
+PORT = "3000"
+
+[[services]]
+internal_port = 3000
+protocol = "tcp"
+
+[[services.ports]]
+port = 80
+
+[[services.ports]]
+port = 443
