@@ -12,21 +12,12 @@ kill_signal = "SIGTERM"
 PORT = "3000"
 NODE_ENV = "production"
 
-# Persistent volumes for data storage
+# Persistent volume for data storage
+# Note: Fly.io allows only 1 volume per machine
 [[mounts]]
 source = "contest_data"
-destination = "/app/data"
-initial_size = 1
-
-[[mounts]]
-source = "contest_backups"
-destination = "/app/backups"
-initial_size = 2
-
-[[mounts]]
-source = "contest_uploads"
-destination = "/app/uploads"
-initial_size = 5
+destination = "/data"
+initial_size = 10
 
 # Process configuration
 [processes]
