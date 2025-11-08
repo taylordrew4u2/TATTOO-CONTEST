@@ -195,60 +195,97 @@ app.post('/api/submit', upload.single('photo'), async (req, res) => {
     const { category, caption, name, phone } = req.body;
     if (!category || !submissions[category]) return res.status(400).json({ error: 'Invalid category' });
 
-    // Upload to Cloudinary if configured, else return local path
+    // Upload to Cloudinary if configured, with local fallback
     let imageUrl = null;
+    let storageMethod = 'none';
+
     if (req.file) {
       console.log(`📸 File received: ${req.file.filename} (${req.file.size} bytes)`);
       
+      // Try Cloudinary first if configured
       if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
         try {
           console.log('📤 Uploading to Cloudinary...');
-          const result = await cloudinary.uploader.upload(req.file.path, { folder: 'tattoo-contest' });
+          const result = await cloudinary.uploader.upload(req.file.path, { 
+            folder: 'tattoo-contest',
+            resource_type: 'auto'
+          });
           imageUrl = result.secure_url;
+          storageMethod = 'cloudinary';
           console.log('✅ Cloudinary upload successful:', imageUrl);
           
-          // Delete local file after successful Cloudinary upload
+          // Delete local temp file after successful Cloudinary upload
           fs.unlink(req.file.path, (err) => {
-            if (err) console.warn('Could not delete temp file:', err.message);
+            if (err) console.warn('⚠️ Could not delete temp file:', err.message);
           });
         } catch (cloudErr) {
-          console.error('❌ Cloudinary upload error:', cloudErr.message);
-          // fallback to local if Cloudinary fails
+          console.error('❌ Cloudinary upload failed:', cloudErr.message);
+          console.error('   Error code:', cloudErr.http_code);
+          console.error('   Error status:', cloudErr.status);
+          console.log('🔄 Falling back to local storage...');
+          
+          // Fallback to local storage on Cloudinary failure
           imageUrl = `/uploads/${req.file.filename}`;
+          storageMethod = 'local-fallback';
+          console.log(`✅ Using local fallback storage: ${imageUrl}`);
         }
       } else {
-        // fallback to server path (not for production)
+        // Cloudinary not configured, use local storage
         imageUrl = `/uploads/${req.file.filename}`;
-        console.log('📁 Using local storage:', imageUrl);
+        storageMethod = 'local-primary';
+        console.log('📁 Cloudinary not configured, using local storage:', imageUrl);
       }
+    } else {
+      console.warn('⚠️ No file uploaded with submission');
     }
 
+    // Create submission entry (with imageUrl even if upload failed)
     const entry = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       category,
       caption: caption || '',
       name: name || '',
       phone: phone || '',
-      imageUrl,
+      imageUrl: imageUrl || null,
+      storageMethod: storageMethod,
       createdAt: Date.now(),
     };
+
+    // Save to in-memory store
     submissions[category].unshift(entry);
+    
+    // CRITICAL: Save to file immediately (fail-safe persistence)
     saveData();
-    console.log(`✓ New submission in ${category}:`, entry.caption);
-    console.log(`Total submissions:`, Object.values(submissions).reduce((a,b) => a + b.length, 0));
-    const publicEntry = { id: entry.id, category: entry.category, caption: entry.caption, imageUrl: entry.imageUrl, createdAt: entry.createdAt, artist: 'Anonymous Artist' };
+    console.log(`✅ Submission saved to data.json in ${category}`);
+    console.log(`   ID: ${entry.id} | Storage: ${storageMethod} | Total submissions: ${Object.values(submissions).reduce((a, b) => a + b.length, 0)}`);
+
+    // Emit to all connected clients in real-time
+    const publicEntry = { 
+      id: entry.id, 
+      category: entry.category, 
+      caption: entry.caption, 
+      imageUrl: entry.imageUrl, 
+      createdAt: entry.createdAt, 
+      artist: 'Anonymous Artist' 
+    };
     io.emit('newSubmission', publicEntry);
 
-    res.json({ success: true, entry });
+    res.json({ success: true, entry, storageMethod });
   } catch (err) {
-    console.error('❌ Upload error:', err.message);
+    console.error('❌ CRITICAL: Upload handler error:', err.message);
+    console.error('   Stack:', err.stack);
+    
     // Clean up temp file on error
     if (req.file) {
       fs.unlink(req.file.path, (err) => {
-        if (err) console.warn('Could not delete temp file on error:', err.message);
+        if (err) console.warn('⚠️ Could not delete temp file on error:', err.message);
       });
     }
-    res.status(500).json({ error: 'Upload failed: ' + err.message });
+    
+    res.status(500).json({ 
+      error: 'Upload failed: ' + err.message,
+      note: 'Submission was not saved. Please try again.'
+    });
   }
 });
 

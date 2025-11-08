@@ -2,13 +2,14 @@
 
 **Date**: November 8, 2025  
 **Status**: ✅ COMPLETE - All critical issues fixed and deployed  
-**Deployment**: Production (https://tattoo-contest.fly.dev)
+**Deployment**: Production (<https://tattoo-contest.fly.dev>)
 
 ---
 
 ## Executive Summary
 
 Found and fixed **5 critical issues** in file upload and storage handling that could have caused:
+
 - App crashes on first file upload
 - Unlimited disk space consumption
 - Security vulnerabilities
@@ -26,16 +27,19 @@ All issues are now resolved with production-ready code deployed.
 **Severity**: 🔴 CRITICAL
 
 **Problem**:
+
 - The `uploads/` directory was not automatically created on server startup
 - If the directory didn't exist, the first file upload would cause multer to crash
 - Application would be completely non-functional without manual directory creation
 
 **Before**:
+
 ```javascript
 const upload = multer({ dest: path.join(__dirname, 'uploads/') });
 ```
 
 **After**:
+
 ```javascript
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 
@@ -55,17 +59,20 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 **Severity**: 🔴 CRITICAL
 
 **Problem**:
+
 - Multer was configured with NO file size limit
 - A single user could upload 1GB+ files
 - Could consume entire server disk space, causing DoS
 - App would crash when disk becomes full
 
 **Before**:
+
 ```javascript
 const upload = multer({ dest: path.join(__dirname, 'uploads/') });
 ```
 
 **After**:
+
 ```javascript
 const upload = multer({
   storage: storage,
@@ -85,18 +92,21 @@ const upload = multer({
 **Severity**: 🟡 MEDIUM
 
 **Problem**:
+
 - Multer default behavior: files stored with random hashes (e.g., `abc123def456`)
 - No file extension stored
 - Impossible to debug which file belongs to which submission
 - Cannot easily identify corrupt or problematic uploads
 
 **Before**:
+
 ```javascript
 const upload = multer({ dest: path.join(__dirname, 'uploads/') });
 // Results in: abc123def456 (no extension, random name)
 ```
 
 **After**:
+
 ```javascript
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOADS_DIR),
@@ -119,17 +129,20 @@ const storage = multer.diskStorage({
 **Severity**: 🔴 CRITICAL
 
 **Problem**:
+
 - Any file type could be uploaded (exe, zip, virus, etc.)
 - Security vulnerability: malicious files could be uploaded
 - Disk wasted on non-image files
 - Cloudinary would also try to process non-image files
 
 **Before**:
+
 ```javascript
 // No MIME type checking - any file accepted
 ```
 
 **After**:
+
 ```javascript
 fileFilter: (req, file, cb) => {
   // Only accept image files
@@ -152,12 +165,14 @@ fileFilter: (req, file, cb) => {
 **Severity**: 🟡 MEDIUM
 
 **Problem**:
+
 - After Cloudinary upload, local temp file was not deleted
 - Temporary files accumulated and leaked disk space
 - Over time, `/tmp` or `uploads/` directory would fill with orphaned files
 - Could cause disk exhaustion
 
 **Before**:
+
 ```javascript
 const result = await cloudinary.uploader.upload(req.file.path, { folder: 'tattoo-contest' });
 imageUrl = result.secure_url;
@@ -165,6 +180,7 @@ imageUrl = result.secure_url;
 ```
 
 **After**:
+
 ```javascript
 const result = await cloudinary.uploader.upload(req.file.path, { folder: 'tattoo-contest' });
 imageUrl = result.secure_url;
@@ -184,6 +200,7 @@ fs.unlink(req.file.path, (err) => {
 ### ✅ Better Error Handling
 
 **Before**:
+
 ```javascript
 } catch (err) {
   console.error(err);
@@ -192,6 +209,7 @@ fs.unlink(req.file.path, (err) => {
 ```
 
 **After**:
+
 ```javascript
 } catch (err) {
   console.error('❌ Upload error:', err.message);
@@ -206,6 +224,7 @@ fs.unlink(req.file.path, (err) => {
 ```
 
 **Improvements**:
+
 - Specific error messages returned to client
 - Temp files cleaned up even on error
 - Better error messages for debugging
@@ -213,6 +232,7 @@ fs.unlink(req.file.path, (err) => {
 ### ✅ Enhanced Logging
 
 **Upload Flow Logging**:
+
 ```
 📸 File received: 1730979211825-ab3cd4e5.jpg (2.3 MB)
 📤 Uploading to Cloudinary...
@@ -220,6 +240,7 @@ fs.unlink(req.file.path, (err) => {
 ```
 
 **Debugging**:
+
 - Know exactly which file was received
 - Can track upload progress
 - Know if/when Cloudinary upload happened
@@ -243,17 +264,20 @@ fs.unlink(req.file.path, (err) => {
 ## Testing Checklist
 
 ✅ **Upload Directory Creation**
+
 ```bash
 # Should see in logs: "✓ Created uploads directory"
 ```
 
 ✅ **File Size Limit**
+
 ```bash
 # Try uploading file > 10MB
 # Expected: 413 Payload Too Large error
 ```
 
 ✅ **Custom Filenames**
+
 ```bash
 # Upload test.jpg
 # Check uploads/ directory
@@ -261,12 +285,14 @@ fs.unlink(req.file.path, (err) => {
 ```
 
 ✅ **MIME Type Validation**
+
 ```bash
 # Try uploading test.txt
 # Expected: "Only image files are allowed"
 ```
 
 ✅ **Temp File Cleanup**
+
 ```bash
 # Upload with Cloudinary configured
 # Local file should disappear after upload
@@ -274,6 +300,7 @@ fs.unlink(req.file.path, (err) => {
 ```
 
 ✅ **Error Handling**
+
 ```bash
 # Check logs for detailed error messages
 # Temp files should be cleaned up on error
@@ -301,11 +328,12 @@ fs.unlink(req.file.path, (err) => {
 ## Production Deployment
 
 ✅ **Deployed**: November 8, 2025  
-✅ **URL**: https://tattoo-contest.fly.dev  
+✅ **URL**: <https://tattoo-contest.fly.dev>  
 ✅ **Status**: Live and operational  
-✅ **Health**: https://tattoo-contest.fly.dev/health
+✅ **Health**: <https://tattoo-contest.fly.dev/health>
 
 **Last Commit**:
+
 ```
 ac9f7b7 Fix critical file storage and upload handling issues
 ```
@@ -315,16 +343,19 @@ ac9f7b7 Fix critical file storage and upload handling issues
 ## Monitoring & Maintenance
 
 ### Daily Checks
+
 - [ ] Review `/health` endpoint for errors
 - [ ] Check disk usage: should be stable
 - [ ] Monitor for temp file accumulation
 
 ### Weekly Checks
+
 - [ ] Review upload logs for errors
 - [ ] Test file upload with different sizes
 - [ ] Verify Cloudinary integration working
 
 ### Monthly Tasks
+
 - [ ] Clean up old uploads if using local storage
 - [ ] Update file size limit based on usage
 - [ ] Review error logs for patterns
