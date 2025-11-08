@@ -1,17 +1,90 @@
+# Tattoo Contest Application - Production Configuration
+# Fly.io deployment with persistent storage and zero-downtime deployments
+
 app = "tattoo-contest"
 primary_region = "iad"
 
+# Graceful shutdown configuration - allows 30 seconds for cleanup
+kill_timeout = 30
+kill_signal = "SIGTERM"
+
 [env]
 PORT = "3000"
+NODE_ENV = "production"
 
+# Persistent volumes for data storage
+[[mounts]]
+source = "contest_data"
+destination = "/app/data"
+initial_size = 1
+
+[[mounts]]
+source = "contest_backups"
+destination = "/app/backups"
+initial_size = 2
+
+[[mounts]]
+source = "contest_uploads"
+destination = "/app/uploads"
+initial_size = 5
+
+# TCP service configuration
 [[services]]
 internal_port = 3000
 protocol = "tcp"
 
+# HTTP endpoint
 [[services.ports]]
 port = 80
 handlers = ["http"]
 
+# HTTPS endpoint
 [[services.ports]]
 port = 443
 handlers = ["tls", "http"]
+
+# HTTP health checks for detailed monitoring
+[[services.http_checks]]
+# Readiness check - verifies real-time service and data persistence
+method = "GET"
+path = "/ready"
+protocol = "http"
+interval = "10s"
+timeout = "5s"
+grace_period = "10s"
+success_threshold = 2
+failure_threshold = 3
+
+[[services.http_checks]]
+# Liveness check - verifies basic app functionality
+method = "GET"
+path = "/health"
+protocol = "http"
+interval = "15s"
+timeout = "5s"
+grace_period = "30s"
+success_threshold = 1
+failure_threshold = 3
+
+[[services.http_checks]]
+# Real-time service health check
+method = "GET"
+path = "/api/realtime-health"
+protocol = "http"
+interval = "10s"
+timeout = "5s"
+grace_period = "15s"
+success_threshold = 2
+failure_threshold = 2
+
+# Process configuration
+[processes]
+app = "node server.js"
+
+# Metrics - collect performance data
+[metrics]
+port = 9090
+
+# Swap space configuration (helps prevent OOM crashes)
+[swap]
+size_mb = 512

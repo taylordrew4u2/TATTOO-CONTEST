@@ -13,6 +13,7 @@ Your tattoo contest app now has **enterprise-grade atomic database operations** 
 A new 400+ line module providing transaction-safe operations:
 
 **Core Features:**
+
 - ✅ **Write-Ahead Logging (WAL)** - Records every transaction before execution
 - ✅ **Atomic Writes** - Write to temp file, verify, then atomically rename
 - ✅ **Backup Snapshots** - Auto-creates backup before each modification
@@ -68,11 +69,13 @@ const metrics = persistence.getMetrics();
 **Modified `server.js` to:**
 
 1. **Initialize atomic persistence:**
+
    ```javascript
    const persistence = new AtomicPersistence(__dirname, 'data.json');
    ```
 
 2. **Use atomic loads:**
+
    ```javascript
    function loadData() {
      const data = persistence.loadWithRecovery();
@@ -82,6 +85,7 @@ const metrics = persistence.getMetrics();
    ```
 
 3. **Use atomic saves:**
+
    ```javascript
    function saveData(operationName = 'save') {
      const data = { submissions, winners };
@@ -264,17 +268,20 @@ Risk: Crash anywhere = DATA RECOVERED FROM BACKUP
 ### Health Checks
 
 **Good State:**
+
 - `metrics.persistence.wal.count` = 0
 - `metrics.persistence.backups.count` = 5-10
 - `metrics.persistence.temp.count` = 0
 - `metrics.dataFile.sizeBytes` < 5MB
 
 **Warning State:**
+
 - WAL count = 1-2 (pending transactions)
 - Backups count approaching 10
 - Data file > 5MB
 
 **Critical State:**
+
 - WAL count > 5 (many pending)
 - Backups count > 10 (cleanup not working)
 - Data file > 10MB (may be corrupted)
@@ -375,6 +382,7 @@ this.maxBackups = 10;             // Max backups to retain
 ```
 
 **Tuning:**
+
 - Increase `maxRetries` for unreliable storage
 - Increase `maxBackups` for more recovery points
 - Increase `retryDelayMs` for slow I/O

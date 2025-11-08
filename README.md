@@ -22,12 +22,13 @@ A real-time tattoo contest web app where users submit photos to compete, and adm
 - 💾 All data persists across server restarts
 
 ### Technical Features
-- 🚀 Real-time updates via Socket.io
+- 🚀 **Real-time updates with Socket.io reliability layer** - Automatic reconnection, message queuing, heartbeat monitoring
+- 🔄 **Graceful degradation** - Fallback recommendations when real-time unavailable
 - 📁 File upload with validation (image-only, 10MB max)
 - 🌄 Cloudinary integration + local fallback storage
-- � **Atomic database operations with zero data loss** (NEW)
-- 💾 **Transaction-safe persistence with WAL recovery** (NEW)
-- �📊 Health check endpoints and performance monitoring
+- 🔐 **Atomic database operations with zero data loss** - WAL recovery, crash-safe transactions
+- 💾 **Transaction-safe persistence** - Atomic writes with automatic backups
+- � Health check endpoints and performance monitoring
 - 🧪 50+ integration tests + load testing framework
 - 📱 Responsive design with Socket.io real-time events
 
@@ -126,6 +127,8 @@ See `docs/TESTING_GUIDE.md` for comprehensive testing procedures.
 - **[ATOMIC_IMPLEMENTATION_GUIDE.md](ATOMIC_IMPLEMENTATION_GUIDE.md)** - Complete atomic transactions guide
 - **[docs/ATOMIC_TRANSACTIONS.md](docs/ATOMIC_TRANSACTIONS.md)** - Architecture and scenarios
 - **[docs/ATOMIC_IMPLEMENTATION_SUMMARY.md](docs/ATOMIC_IMPLEMENTATION_SUMMARY.md)** - Implementation details
+- **[docs/REALTIME_RELIABILITY.md](docs/REALTIME_RELIABILITY.md)** - Socket.io reliability, heartbeat, message queuing (NEW)
+- **[docs/PRODUCTION_DEPLOYMENT.md](docs/PRODUCTION_DEPLOYMENT.md)** - Production deployment guide, volumes, scaling, troubleshooting (NEW)
 - **[docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md)** - Complete testing procedures
 - **[FILE_STORAGE_FIXES.md](docs/FILE_STORAGE_FIXES.md)** - File upload configuration fixes
 - **[DISASTER_RECOVERY.md](docs/DISASTER_RECOVERY.md)** - Failure scenarios and recovery (12 scenarios)
@@ -149,7 +152,62 @@ See `docs/TESTING_GUIDE.md` for comprehensive testing procedures.
 - Survives server restarts
 - Auto-creates backup on significant changes
 
-## 🐳 Docker
+## � Real-Time Reliability (NEW!)
+
+The application includes production-grade Socket.io reliability with:
+
+- **Automatic Reconnection** - Exponential backoff (1s → 30s max)
+- **Message Queuing** - Offline clients queue messages (max 1000 per client, 5 min TTL)
+- **Heartbeat Monitoring** - Detects broken connections every 30 seconds
+- **Graceful Degradation** - Recommends fallback strategies when real-time unavailable
+- **Health Monitoring** - Real-time service health endpoints and metrics
+
+**Health Endpoints:**
+- `GET /api/realtime-health` - Service health (200 if healthy, 503 if degraded)
+- `GET /api/realtime-metrics` - Connection and performance metrics
+- `GET /api/realtime-fallback` - Fallback status and recommendations
+
+See `docs/REALTIME_RELIABILITY.md` for architecture and configuration.
+
+## 🚀 Production Deployment (NEW!)
+
+Enhanced Fly.io configuration with:
+
+- **Persistent Volumes**
+  - `contest_data` (1 GB) - Submissions and winners database
+  - `contest_backups` (2 GB) - Atomic backup snapshots
+  - `contest_uploads` (5 GB) - User-uploaded images
+
+- **Health Checks** - Three-tier health monitoring
+  - Readiness check (`/ready`)
+  - Liveness check (`/health`)
+  - Real-time service check (`/api/realtime-health`)
+
+- **Graceful Shutdown** - 30-second shutdown window
+  - Notifies clients
+  - Saves final state atomically
+  - Closes connections cleanly
+
+- **Zero-Downtime Deployment** - Safe rolling updates
+
+**Key Commands:**
+```bash
+# Create volumes (one-time)
+fly volumes create contest_data --app tattoo-contest --size 1
+fly volumes create contest_backups --app tattoo-contest --size 2
+fly volumes create contest_uploads --app tattoo-contest --size 5
+
+# Deploy
+fly deploy --app tattoo-contest
+
+# Monitor
+fly status --app tattoo-contest
+fly logs --app tattoo-contest
+```
+
+See `docs/PRODUCTION_DEPLOYMENT.md` for complete deployment guide and troubleshooting.
+
+## �🐳 Docker
 
 The app is fully containerized with a production-ready Dockerfile:
 
@@ -161,12 +219,14 @@ docker run -p 3000:3000 tattoo-contest
 ## 📞 Support
 
 For issues or questions, refer to:
-1. `docs/DISASTER_RECOVERY.md` for troubleshooting
-2. `docs/QUICK_REFERENCE.md` for quick answers
-3. `docs/FILE_STORAGE_FIXES.md` for file upload issues
+1. `docs/PRODUCTION_DEPLOYMENT.md` for deployment troubleshooting
+2. `docs/REALTIME_RELIABILITY.md` for real-time issues
+3. `docs/DISASTER_RECOVERY.md` for failure scenarios
+4. `docs/QUICK_REFERENCE.md` for quick answers
+5. `docs/FILE_STORAGE_FIXES.md` for file upload issues
 
 ---
 
-**Status:** ✅ Production-ready | **Last Updated:** November 2025
+**Status:** ✅ Production-ready | **Features:** Atomic Transactions, Real-Time Reliability, Production Deployment | **Last Updated:** January 2025
 
 ````

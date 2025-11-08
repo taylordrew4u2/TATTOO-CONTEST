@@ -9,11 +9,22 @@ const cors = require('cors');
 const session = require('express-session');
 const fs = require('fs');
 const AtomicPersistence = require('./lib/atomic-persistence');
+const RealtimeReliability = require('./lib/realtime-reliability');
 
 const app = express();
 const server = http.createServer(app);
 const { Server } = require('socket.io');
 const io = new Server(server);
+
+// Initialize real-time reliability
+const realtime = new RealtimeReliability(io, {
+  heartbeatInterval: 30000,      // Send heartbeat every 30 seconds
+  heartbeatTimeout: 45000,       // Disconnect if no pong after 45 seconds
+  maxQueueSize: 1000,            // Max 1000 messages per offline client
+  initialBackoffDelay: 1000,     // Start with 1 second delay
+  backoffMultiplier: 2,          // Double the delay each retry
+  maxBackoffDelay: 30000         // Cap at 30 seconds
+});
 
 const PORT = process.env.PORT || 3000;
 const DATA_FILE = path.join(__dirname, 'data.json');
@@ -300,7 +311,7 @@ app.post('/api/submit', upload.single('photo'), async (req, res) => {
     console.log(`   Storage: ${storageMethod}`);
     console.log(`   Total in ${category}: ${submissions[category].length}`);
 
-    // Emit to all connected clients in real-time
+    // Emit to all connected clients in real-time with reliability
     const publicEntry = { 
       id: entry.id, 
       category: entry.category, 
@@ -309,8 +320,9 @@ app.post('/api/submit', upload.single('photo'), async (req, res) => {
       createdAt: entry.createdAt, 
       artist: 'Anonymous Artist' 
     };
-    io.emit('newSubmission', publicEntry);
-    console.log(`📡 Real-time update broadcast`);
+    
+    const broadcastResult = realtime.broadcastMessage('newSubmission', publicEntry, { queue: true });
+    console.log(`📡 Real-time update broadcast: ${broadcastResult.deliveredTo.length} delivered, ${broadcastResult.queuedFor.length} queued`);
 
     console.log(`✅ SUBMISSION COMPLETE: ${submissionId}\n`);
     
@@ -421,9 +433,10 @@ app.post('/api/save-winners', requireAdmin, (req, res) => {
       }
     }
 
-    // broadcast winners update
-    console.log(`📡 Broadcasting winners update...`);
-    io.emit('winnersUpdated', { winners });
+    // broadcast winners update using reliability layer
+    console.log(`📡 Broadcasting winners update with reliability layer...`);
+    const broadcastResult = realtime.broadcastMessage('winnersUpdated', { winners }, { queue: true });
+    console.log(`   Delivered to ${broadcastResult.deliveredTo.length}, queued for ${broadcastResult.queuedFor.length}`);
 
     console.log(`✅ WINNERS UPDATE COMPLETE: ${winnersId}\n`);
     res.json({ success: true, transactionId: saveResult.transactionId });
@@ -437,11 +450,52 @@ app.post('/api/save-winners', requireAdmin, (req, res) => {
   }
 });
 
-// Start socket
-io.on('connection', (socket) => {
-  // no-op; clients will receive events
+// Initialize real-time connection handling
+realtime.initializeConnections();
+
+// Real-time endpoints for monitoring
+app.get('/api/realtime-health', (req, res) => {
+  const health = realtime.getHealthStatus();
+  const statusCode = health.status === 'healthy' ? 200 : 503;
+  res.status(statusCode).json(health);
 });
+
+app.get('/api/realtime-metrics', (req, res) => {
+  const metrics = realtime.getMetrics();
+  res.json(metrics);
+});
+
+app.get('/api/realtime-fallback', (req, res) => {
+  const fallback = realtime.getFallbackStatus();
+  const statusCode = fallback.available ? 200 : 503;
+  res.status(statusCode).json(fallback);
+});
+
+// Graceful shutdown handling
+process.on('SIGTERM', () => {
+  console.log('\n🛑 SIGTERM received, gracefully shutting down...');
+  realtime.shutdown();
+  server.close(() => {
+    console.log('✅ Server shut down gracefully');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('\n🛑 SIGINT received, gracefully shutting down...');
+  realtime.shutdown();
+  server.close(() => {
+    console.log('✅ Server shut down gracefully');
+    process.exit(0);
+  });
+});
+
+// Cleanup expired messages periodically
+setInterval(() => {
+  realtime.cleanupExpiredMessages();
+}, 60000); // Every minute
 
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`Real-time service: ${realtime.isAvailable() ? '✅ Available' : '⚠️ Degraded'}`);
 });
