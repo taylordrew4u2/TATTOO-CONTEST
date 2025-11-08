@@ -39,39 +39,14 @@ handlers = ["http"]
 port = 443
 handlers = ["tls", "http"]
 
-# HTTP health checks for detailed monitoring
+# HTTP health check
 [[services.http_checks]]
-# Readiness check - verifies real-time service and data persistence
-method = "GET"
-path = "/ready"
-protocol = "http"
-interval = "10s"
-timeout = "5s"
-grace_period = "10s"
-success_threshold = 2
-failure_threshold = 3
-
-[[services.http_checks]]
-# Liveness check - verifies basic app functionality
 method = "GET"
 path = "/health"
 protocol = "http"
-interval = "15s"
-timeout = "5s"
-grace_period = "30s"
-success_threshold = 1
-failure_threshold = 3
-
-[[services.http_checks]]
-# Real-time service health check
-method = "GET"
-path = "/api/realtime-health"
-protocol = "http"
 interval = "10s"
 timeout = "5s"
-grace_period = "15s"
-success_threshold = 2
-failure_threshold = 2
+grace_period = "5s"
 
 # Metrics - collect performance data
 [metrics]
