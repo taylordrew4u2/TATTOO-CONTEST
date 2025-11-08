@@ -28,10 +28,15 @@ source = "contest_uploads"
 destination = "/app/uploads"
 initial_size = 5
 
+# Process configuration
+[processes]
+app = "node server.js"
+
 # TCP service configuration
 [[services]]
 internal_port = 3000
 protocol = "tcp"
+processes = ["app"]
 
 # HTTP endpoint
 [[services.ports]]
@@ -76,10 +81,6 @@ timeout = "5s"
 grace_period = "15s"
 success_threshold = 2
 failure_threshold = 2
-
-# Process configuration
-[processes]
-app = "node server.js"
 
 # Metrics - collect performance data
 [metrics]
