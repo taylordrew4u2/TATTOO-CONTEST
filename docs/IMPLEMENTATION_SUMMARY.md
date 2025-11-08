@@ -30,6 +30,7 @@ A complete testing and validation framework has been implemented for the Tattoo 
 | Error Handling | 3 tests | ✅ Automated |
 
 **Run Tests:**
+
 ```bash
 # Against local server
 npm test
@@ -43,22 +44,26 @@ TEST_URL=https://tattoo-contest.fly.dev npm run test:integration
 **Three comprehensive load test types:**
 
 #### Stress Test (Default)
+
 - Simulates 50 concurrent users (configurable)
 - Realistic behavior patterns (feed polls, submissions)
 - Metrics: throughput, response times, error rates, socket stability
 - Pass criteria: avg < 500ms, P95 < 1s, errors < 5%
 
 #### Spike Test
+
 - 10x traffic surge (500 concurrent users)
 - Tests auto-recovery and graceful degradation
 - Pass criteria: failure rate < 10%
 
 #### Memory Leak Test
+
 - 5-minute sustained load
 - Detects unbounded memory growth
 - Monitors resource cleanup
 
 **Run Load Tests:**
+
 ```bash
 # Basic stress test (50 users, 60s)
 npm run load-test
@@ -78,27 +83,34 @@ CONCURRENT_USERS=200 DURATION=300 npm run load-test
 **Deployed to production:**
 
 #### GET `/health`
+
 ```bash
 curl https://tattoo-contest.fly.dev/health
 ```
+
 Returns: Status, uptime, memory usage, category/submission/winner counts
 
 #### GET `/ready`
+
 ```bash
 curl https://tattoo-contest.fly.dev/ready
 ```
+
 Returns: 200 if ready, 503 if initializing (for orchestration systems)
 
 #### GET `/api/metrics` (Admin only)
+
 ```bash
 curl https://tattoo-contest.fly.dev/api/metrics \
   -H "Cookie: session-cookie"
 ```
+
 Returns: Detailed metrics for requests, errors, uploads, real-time events
 
 ### 4. Performance Monitoring (`lib/performance-monitor.js`)
 
 **Real-time metrics collection:**
+
 - HTTP request tracking (duration, status, endpoint)
 - Error logging and aggregation
 - Socket.io event monitoring
@@ -106,6 +118,7 @@ Returns: Detailed metrics for requests, errors, uploads, real-time events
 - Health report generation
 
 **Metrics Tracked:**
+
 - Average response time
 - P95 response time
 - Error rate by endpoint
@@ -132,6 +145,7 @@ Returns: Detailed metrics for requests, errors, uploads, real-time events
 ### 6. Complete Testing Guide (`docs/TESTING_GUIDE.md`)
 
 **400+ lines of testing documentation:**
+
 - Quick start guide
 - Integration test procedures
 - Load test interpretation
@@ -145,6 +159,7 @@ Returns: Detailed metrics for requests, errors, uploads, real-time events
 ### 7. Manual Test Scenarios (`docs/TEST_SCENARIOS.md`)
 
 **10 detailed manual test scenarios:**
+
 1. Happy path - complete submission flow
 2. Admin flow - login and winner selection
 3. Real-time sync - multi-device testing
@@ -182,6 +197,7 @@ Returns: Detailed metrics for requests, errors, uploads, real-time events
 - Test scripts ready to run locally or CI/CD pipeline
 
 **Current Health:**
+
 ```
 Status: Healthy
 Uptime: 20+ seconds (fresh deployment)
@@ -240,6 +256,7 @@ curl https://tattoo-contest.fly.dev/api/metrics \
 ### Automated Alerts
 
 Set up monitoring with these thresholds:
+
 - Response time > 1000ms: warning
 - Error rate > 5%: critical
 - Memory > 500MB: warning
@@ -261,6 +278,7 @@ Set up monitoring with these thresholds:
 | Error Handling | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 Legend:
+
 - ✅ = Fully tested
 - ⚠️ = Requires credentials
 - ❌ = Not tested
@@ -309,12 +327,14 @@ jobs:
 ## Monitoring Dashboard (Recommended)
 
 For production monitoring, integrate with:
+
 - **Datadog**: APM for performance tracking
 - **Sentry**: Error tracking and alerts
 - **PagerDuty**: On-call alerting
 - **Grafana**: Custom dashboards
 
 Import these metrics:
+
 - `response_time_avg`, `response_time_p95`
 - `error_rate`, `error_count`
 - `memory_usage`, `socket_connections`
@@ -325,11 +345,13 @@ Import these metrics:
 ## Next Steps
 
 1. **Run Integration Tests**
+
    ```bash
    TEST_URL=https://tattoo-contest.fly.dev npm run test:integration
    ```
 
 2. **Run Load Tests**
+
    ```bash
    npm run load-test
    ```
@@ -363,6 +385,7 @@ Import these metrics:
 ## Summary of Changes
 
 **Files Created:**
+
 - `tests/integration.test.js` - 330 lines, 50+ test cases
 - `tests/load-test.js` - 280 lines, 3 test types
 - `lib/performance-monitor.js` - 220 lines, metrics module
@@ -371,6 +394,7 @@ Import these metrics:
 - `docs/DISASTER_RECOVERY.md` - 470 lines
 
 **Files Modified:**
+
 - `server.js` - Added health check endpoints
 - `package.json` - Added test scripts and dependencies
 

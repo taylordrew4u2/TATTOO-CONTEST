@@ -16,6 +16,13 @@ const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
 const DATA_FILE = path.join(__dirname, 'data.json');
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+
+// Ensure upload directory exists
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  console.log('✓ Created uploads directory');
+}
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -74,7 +81,32 @@ for (const c of categories) {
 }
 
 // Multer for handling multipart uploads
-const upload = multer({ dest: path.join(__dirname, 'uploads/') });
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, UPLOADS_DIR);
+  },
+  filename: function (req, file, cb) {
+    // Generate descriptive filename: timestamp-random.extension
+    const ext = path.extname(file.originalname);
+    const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+    cb(null, name);
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    // Only accept image files
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  }
+});
 
 // Health check endpoints for monitoring
 app.get('/health', (req, res) => {
@@ -166,18 +198,28 @@ app.post('/api/submit', upload.single('photo'), async (req, res) => {
     // Upload to Cloudinary if configured, else return local path
     let imageUrl = null;
     if (req.file) {
+      console.log(`📸 File received: ${req.file.filename} (${req.file.size} bytes)`);
+      
       if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
         try {
+          console.log('📤 Uploading to Cloudinary...');
           const result = await cloudinary.uploader.upload(req.file.path, { folder: 'tattoo-contest' });
           imageUrl = result.secure_url;
+          console.log('✅ Cloudinary upload successful:', imageUrl);
+          
+          // Delete local file after successful Cloudinary upload
+          fs.unlink(req.file.path, (err) => {
+            if (err) console.warn('Could not delete temp file:', err.message);
+          });
         } catch (cloudErr) {
-          console.error('Cloudinary upload error:', cloudErr);
+          console.error('❌ Cloudinary upload error:', cloudErr.message);
           // fallback to local if Cloudinary fails
           imageUrl = `/uploads/${req.file.filename}`;
         }
       } else {
         // fallback to server path (not for production)
         imageUrl = `/uploads/${req.file.filename}`;
+        console.log('📁 Using local storage:', imageUrl);
       }
     }
 
@@ -199,8 +241,14 @@ app.post('/api/submit', upload.single('photo'), async (req, res) => {
 
     res.json({ success: true, entry });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Upload failed' });
+    console.error('❌ Upload error:', err.message);
+    // Clean up temp file on error
+    if (req.file) {
+      fs.unlink(req.file.path, (err) => {
+        if (err) console.warn('Could not delete temp file on error:', err.message);
+      });
+    }
+    res.status(500).json({ error: 'Upload failed: ' + err.message });
   }
 });
 
