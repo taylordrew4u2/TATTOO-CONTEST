@@ -25,9 +25,23 @@ A real-time tattoo contest web app where users submit photos to compete, and adm
 - 🚀 Real-time updates via Socket.io
 - 📁 File upload with validation (image-only, 10MB max)
 - 🌄 Cloudinary integration + local fallback storage
-- 📊 Health check endpoints and performance monitoring
+- � **Atomic database operations with zero data loss** (NEW)
+- 💾 **Transaction-safe persistence with WAL recovery** (NEW)
+- �📊 Health check endpoints and performance monitoring
 - 🧪 50+ integration tests + load testing framework
 - 📱 Responsive design with Socket.io real-time events
+
+## 🔐 Data Safety (NEW!)
+
+**Atomic Transactions:**
+- Write-Ahead Logging (WAL) for crash recovery
+- Automatic backup snapshots before every write
+- Transaction-safe file operations (all-or-nothing)
+- Write verification before client response
+- Automatic retry with exponential backoff
+- **Zero data loss guarantee** ✅
+
+See `ATOMIC_IMPLEMENTATION_GUIDE.md` for details.
 
 ## 📦 Installation
 
@@ -109,8 +123,10 @@ See `docs/TESTING_GUIDE.md` for comprehensive testing procedures.
 
 ## 📚 Documentation
 
-- **[TESTING_GUIDE.md](docs/TESTING_GUIDE.md)** - Complete testing procedures
-- **[TEST_SCENARIOS.md](docs/TEST_SCENARIOS.md)** - Manual test flows (50+ scenarios)
+- **[ATOMIC_IMPLEMENTATION_GUIDE.md](ATOMIC_IMPLEMENTATION_GUIDE.md)** - Complete atomic transactions guide
+- **[docs/ATOMIC_TRANSACTIONS.md](docs/ATOMIC_TRANSACTIONS.md)** - Architecture and scenarios
+- **[docs/ATOMIC_IMPLEMENTATION_SUMMARY.md](docs/ATOMIC_IMPLEMENTATION_SUMMARY.md)** - Implementation details
+- **[docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md)** - Complete testing procedures
 - **[FILE_STORAGE_FIXES.md](docs/FILE_STORAGE_FIXES.md)** - File upload configuration fixes
 - **[DISASTER_RECOVERY.md](docs/DISASTER_RECOVERY.md)** - Failure scenarios and recovery (12 scenarios)
 - **[IMPLEMENTATION_SUMMARY.md](docs/IMPLEMENTATION_SUMMARY.md)** - Technical overview
