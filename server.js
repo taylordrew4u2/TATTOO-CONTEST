@@ -8,6 +8,7 @@ const cloudinary = require('cloudinary').v2;
 const cors = require('cors');
 const session = require('express-session');
 const fs = require('fs');
+const AtomicPersistence = require('./lib/atomic-persistence');
 
 const app = express();
 const server = http.createServer(app);
@@ -17,6 +18,9 @@ const io = new Server(server);
 const PORT = process.env.PORT || 3000;
 const DATA_FILE = path.join(__dirname, 'data.json');
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
+
+// Initialize atomic persistence
+const persistence = new AtomicPersistence(__dirname, 'data.json');
 
 // Ensure upload directory exists
 if (!fs.existsSync(UPLOADS_DIR)) {
@@ -47,30 +51,34 @@ app.get('/admin', (req, res) => {
 // Serve static
 app.use('/', express.static(path.join(__dirname, 'public')));
 
-// Simple in-memory datastore with file persistence
+// Simple in-memory datastore with atomic file persistence
 const categories = require('./categories.json');
 let submissions = {}; // category -> array
 let winners = {}; // category -> array of 2 ids
 
-// Load from file if exists
+// Load from file with recovery
 function loadData() {
   try {
-    if (fs.existsSync(DATA_FILE)) {
-      const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-      submissions = data.submissions || {};
-      winners = data.winners || {};
-    }
+    const data = persistence.loadWithRecovery();
+    submissions = data.submissions || {};
+    winners = data.winners || {};
+    console.log('✅ Data loaded with atomic persistence');
   } catch (err) {
     console.error('Failed to load data:', err.message);
+    submissions = {};
+    winners = {};
   }
 }
 
-// Save to file
-function saveData() {
+// Save to file with atomic transaction
+function saveData(operationName = 'save') {
   try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify({ submissions, winners }, null, 2));
+    const data = { submissions, winners };
+    const result = persistence.saveTransaction(data, operationName);
+    return result;
   } catch (err) {
-    console.error('Failed to save data:', err.message);
+    console.error('❌ CRITICAL SAVE FAILURE:', err.message);
+    throw err;
   }
 }
 
@@ -124,6 +132,7 @@ app.get('/health', (req, res) => {
 
 // Detailed metrics endpoint (requires admin)
 app.get('/api/metrics', requireAdmin, (req, res) => {
+  const persistenceMetrics = persistence.getMetrics();
   const metrics = {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
@@ -151,7 +160,8 @@ app.get('/api/metrics', requireAdmin, (req, res) => {
     dataFile: {
       exists: fs.existsSync(DATA_FILE),
       sizeBytes: fs.existsSync(DATA_FILE) ? fs.statSync(DATA_FILE).size : 0
-    }
+    },
+    persistence: persistenceMetrics
   };
   res.json(metrics);
 });
@@ -191,9 +201,15 @@ app.post('/api/categories', requireAdmin, (req, res) => {
 
 // API: submit
 app.post('/api/submit', upload.single('photo'), async (req, res) => {
+  const submissionId = `sub-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  
   try {
+    console.log(`\n📨 SUBMISSION START: ${submissionId}`);
     const { category, caption, name, phone } = req.body;
-    if (!category || !submissions[category]) return res.status(400).json({ error: 'Invalid category' });
+    
+    if (!category || !submissions[category]) {
+      return res.status(400).json({ error: 'Invalid category' });
+    }
 
     // Upload to Cloudinary if configured, with local fallback
     let imageUrl = null;
@@ -239,7 +255,7 @@ app.post('/api/submit', upload.single('photo'), async (req, res) => {
       console.warn('⚠️ No file uploaded with submission');
     }
 
-    // Create submission entry (with imageUrl even if upload failed)
+    // Create submission entry
     const entry = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       category,
@@ -249,15 +265,40 @@ app.post('/api/submit', upload.single('photo'), async (req, res) => {
       imageUrl: imageUrl || null,
       storageMethod: storageMethod,
       createdAt: Date.now(),
+      submissionId: submissionId  // For tracking in logs
     };
 
+    console.log(`💾 Adding submission to in-memory store...`);
     // Save to in-memory store
     submissions[category].unshift(entry);
     
-    // CRITICAL: Save to file immediately (fail-safe persistence)
-    saveData();
-    console.log(`✅ Submission saved to data.json in ${category}`);
-    console.log(`   ID: ${entry.id} | Storage: ${storageMethod} | Total submissions: ${Object.values(submissions).reduce((a, b) => a + b.length, 0)}`);
+    // CRITICAL: ATOMIC TRANSACTION - Save to file with full safety guarantees
+    console.log(`🔐 Starting atomic write transaction...`);
+    let saveResult;
+    try {
+      saveResult = saveData(`submission-${category}-${entry.id}`);
+      console.log(`✅ Atomic transaction completed successfully`);
+      console.log(`   Transaction ID: ${saveResult.transactionId}`);
+      console.log(`   Backup: ${saveResult.backup ? 'created' : 'none'}`);
+    } catch (saveErr) {
+      console.error(`❌ CRITICAL: Atomic save failed! Attempting recovery...`);
+      console.error(`   Error: ${saveErr.message}`);
+      
+      // RECOVERY: Reload from file (should have backup)
+      try {
+        console.log(`🔄 Reloading data from file for recovery...`);
+        loadData();
+        console.log(`✅ Data reloaded, in-memory state restored`);
+      } catch (reloadErr) {
+        console.error(`❌ CRITICAL: Recovery failed! Data may be inconsistent.`);
+        console.error(`   ${reloadErr.message}`);
+        throw new Error('Data persistence failed and recovery was unsuccessful');
+      }
+    }
+
+    console.log(`✅ Submission persisted: ${entry.id}`);
+    console.log(`   Storage: ${storageMethod}`);
+    console.log(`   Total in ${category}: ${submissions[category].length}`);
 
     // Emit to all connected clients in real-time
     const publicEntry = { 
@@ -269,11 +310,22 @@ app.post('/api/submit', upload.single('photo'), async (req, res) => {
       artist: 'Anonymous Artist' 
     };
     io.emit('newSubmission', publicEntry);
+    console.log(`📡 Real-time update broadcast`);
 
-    res.json({ success: true, entry, storageMethod });
+    console.log(`✅ SUBMISSION COMPLETE: ${submissionId}\n`);
+    
+    res.json({ 
+      success: true, 
+      entry, 
+      storageMethod,
+      submissionId: submissionId,
+      persistenceConfirmed: true,
+      transactionId: saveResult.transactionId
+    });
   } catch (err) {
-    console.error('❌ CRITICAL: Upload handler error:', err.message);
-    console.error('   Stack:', err.stack);
+    console.error(`\n❌ SUBMISSION FAILED: ${submissionId}`);
+    console.error(`   Error: ${err.message}`);
+    console.error(`   Stack: ${err.stack}\n`);
     
     // Clean up temp file on error
     if (req.file) {
@@ -284,7 +336,8 @@ app.post('/api/submit', upload.single('photo'), async (req, res) => {
     
     res.status(500).json({ 
       error: 'Upload failed: ' + err.message,
-      note: 'Submission was not saved. Please try again.'
+      note: 'Submission may not have been saved. Please try again.',
+      submissionId: submissionId
     });
   }
 });
@@ -337,17 +390,51 @@ app.get('/api/winners', (req, res) => {
 
 // Admin: save winners
 app.post('/api/save-winners', requireAdmin, (req, res) => {
-  const data = req.body; // expect { winners: { categoryId: [id1,id2], ... } }
-  if (!data || !data.winners) return res.status(400).json({ error: 'Missing winners data' });
-  for (const [cat, arr] of Object.entries(data.winners)) {
-    winners[cat] = (arr || []).slice(0,2);
+  const winnersId = `winners-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  
+  try {
+    console.log(`\n🏆 WINNERS UPDATE START: ${winnersId}`);
+    const data = req.body; // expect { winners: { categoryId: [id1,id2], ... } }
+    if (!data || !data.winners) return res.status(400).json({ error: 'Missing winners data' });
+    
+    console.log(`📝 Updating winners in in-memory store...`);
+    for (const [cat, arr] of Object.entries(data.winners)) {
+      winners[cat] = (arr || []).slice(0, 2);
+      console.log(`   ${cat}: ${winners[cat].length} winner(s)`);
+    }
+    
+    // ATOMIC TRANSACTION: Save winners
+    console.log(`🔐 Starting atomic write transaction...`);
+    let saveResult;
+    try {
+      saveResult = saveData(`winners-update-${winnersId}`);
+      console.log(`✅ Atomic transaction completed successfully`);
+      console.log(`   Transaction ID: ${saveResult.transactionId}`);
+    } catch (saveErr) {
+      console.error(`❌ Winners save failed! Attempting recovery...`);
+      try {
+        console.log(`🔄 Reloading from backup...`);
+        loadData();
+        throw new Error('Winners save failed but data reloaded from backup');
+      } catch (reloadErr) {
+        throw new Error('Winners save failed and recovery unsuccessful');
+      }
+    }
+
+    // broadcast winners update
+    console.log(`📡 Broadcasting winners update...`);
+    io.emit('winnersUpdated', { winners });
+
+    console.log(`✅ WINNERS UPDATE COMPLETE: ${winnersId}\n`);
+    res.json({ success: true, transactionId: saveResult.transactionId });
+  } catch (err) {
+    console.error(`\n❌ WINNERS UPDATE FAILED: ${winnersId}`);
+    console.error(`   Error: ${err.message}\n`);
+    res.status(500).json({ 
+      error: 'Save failed: ' + err.message,
+      winnersId: winnersId
+    });
   }
-  saveData();
-
-  // broadcast winners update
-  io.emit('winnersUpdated', { winners });
-
-  res.json({ success: true });
 });
 
 // Start socket
